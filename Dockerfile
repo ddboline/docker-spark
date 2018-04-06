@@ -1,24 +1,18 @@
-FROM debian:jessie
-MAINTAINER Getty Images "https://github.com/gettyimages"
+FROM ubuntu:xenial
+MAINTAINER Daniel Boline
 
 RUN apt-get update \
- && apt-get install -y locales \
- && dpkg-reconfigure -f noninteractive locales \
- && locale-gen C.UTF-8 \
- && /usr/sbin/update-locale LANG=C.UTF-8 \
- && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
- && locale-gen \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
-
+ && apt-get install -y git sudo apt-transport-https 
 # Users with other locales should set this in their derivative image
-ENV LANG en_US.UTF-8
+ENV LANG C.UTF-8
 ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
 
-RUN apt-get update \
- && apt-get install -y curl unzip \
-    python3 python3-setuptools \
+RUN bash -c "echo deb https://dl.bintray.com/sbt/debian / > /etc/apt/sources.list.d/sbt.list"
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv 99E82A75642AC823
+RUN apt-get update
+
+RUN apt-get install -y curl unzip \
+    python3 python3-setuptools sbt \
  && ln -s /usr/bin/python3 /usr/bin/python \
  && easy_install3 pip py4j \
  && apt-get clean \
@@ -69,5 +63,19 @@ RUN curl -sL --retry 3 \
  && mv /usr/$SPARK_PACKAGE $SPARK_HOME \
  && chown -R root:root $SPARK_HOME
 
+RUN mkdir -p /home/ubuntu
+
+RUN export uid=1000 gid=1000 && \
+    mkdir -p /etc/sudoers.d && \
+    echo "ubuntu:x:${uid}:${gid}:Developer,,,:/home/ubuntu:/bin/bash" >> /etc/passwd && \
+    echo "ubuntu:x:${uid}:" >> /etc/group && \
+    echo "ubuntu ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu && \
+    chmod 0440 /etc/sudoers.d/ubuntu && \
+    chown ${uid}:${gid} -R /home/ubuntu
+
+USER ubuntu
+ENV USER ubuntu
+ENV HOME /home/ubuntu
+ 
 WORKDIR $SPARK_HOME
 CMD ["bin/spark-class", "org.apache.spark.deploy.master.Master"]
